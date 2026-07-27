@@ -6,6 +6,17 @@ A lightweight Windows launcher for 1Password SSH Bookmarks. When an `ssh://` lin
 
 The interface supports English and Simplified Chinese. It follows the system language by default and can be switched manually.
 
+## Why this exists
+
+My SSH keys are all in **1Password**. Auth through the SSH Agent is fine. The problem is the Bookmark custom command can only launch **one** app, but I need both:
+
+- **SFTP GUI** (WinSCP / Cyberduck) when transferring files  
+- **Terminal** when I need a shell  
+
+Sometimes I need both for the same host. A fixed command cannot do that.
+
+A script or a stock Windows dialog would work functionally. I still made a proper UI because I like how 1Password looks and did not want the next step to be a black console or a bare system prompt.
+
 > [!NOTE]
 > This is a **vibe coding project**. The author defined the product idea, interaction decisions, and acceptance criteria, while most of the code and visual implementation was iterated in collaboration with AI. Code review, issue reports, and contributions are welcome.
 
