@@ -63,6 +63,7 @@ Launcher 把 **1Password Bookmark 变成控制面**，WinSCP 和 Windows Termina
 - 支持简体中文与 English
 - 支持浅色 / 深色主题：默认跟随系统，也可通过启动参数指定
 - 通过命令行选择 SFTP 客户端（默认 `--sftp=winscp`，或 `--sftp=cyberduck`）
+- **环境诊断**：检查 OpenSSH、Agent 管道、Terminal、WinSCP 版本/Agent 设置、1Password 配置、IdentityFile；可复制报告（`--diagnostics`）
 - 单文件便携版，可复制到其他 Windows 电脑使用
 
 ## 使用条件
@@ -295,11 +296,13 @@ git push origin v1.1.1
 
 ### WinSCP 能打开，但认证失败 / 没有 1Password 授权提示
 
+先打开应用内的 **环境诊断**（或启动时加 `--diagnostics`），复制报告。同时检查：
+
 1. 确认 WinSCP 版本 ≥ **6.6.1**（**帮助 → 关于**）。更早版本不支持原生 OpenSSH Agent。
 2. 将 **首选项 → 安全 → Authentication agent** 设为 **OpenSSH ssh-agent**。
 3. 确认会话里已启用 **Attempt authentication using agent**。
 4. 保持 1Password SSH Agent 开启，并确保 Windows **OpenSSH Authentication Agent** 服务没有占用 Agent 管道。
-5. 先在终端运行 `ssh-add -l`；若这里都列不出密钥，先修好 1Password，再排查 WinSCP。
+5. 在诊断页使用 **列出 Agent 密钥**（或终端 `ssh-add -l`）；若列不出密钥，先修好 1Password，再排查 WinSCP。
 
 ### Windows Terminal 无法打开
 
