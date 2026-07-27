@@ -328,15 +328,17 @@ fn launch_winscp(connection: &ConnectionInfo) -> Result<(), String> {
     let winscp = find_winscp()
         .ok_or_else(|| "未找到 WinSCP.exe。请安装 WinSCP 6.6.1 或更高版本。".to_string())?;
 
-    let identity_file = resolve_bookmark_identity(connection)?;
     let sftp_url = build_sftp_url(connection)?;
 
+    // Identity is optional: prefer ssh -G IdentityFile for multi-key agent matching.
+    // Missing or non-unique keys must not block WinSCP (agent-only login still works).
+    let mut args = vec!["/newinstance".to_string(), sftp_url.to_string()];
+    if let Some(identity_file) = resolve_preferred_identity(connection) {
+        args.push(format!("/privatekey={}", identity_file.display()));
+    }
+
     Command::new(winscp)
-        .args([
-            "/newinstance".to_string(),
-            sftp_url.to_string(),
-            format!("/privatekey={}", identity_file.display()),
-        ])
+        .args(args)
         .spawn()
         .map_err(|error| format!("无法启动 WinSCP：{error}"))?;
 
@@ -388,12 +390,35 @@ fn launch_terminal(connection: &ConnectionInfo) -> Result<(), String> {
     Ok(())
 }
 
-fn resolve_bookmark_identity(connection: &ConnectionInfo) -> Result<PathBuf, String> {
-    let ssh = find_executable(
+/// Best-effort identity for WinSCP `/privatekey=` from OpenSSH config (`ssh -G`).
+///
+/// - Uses the final `IdentityFile` list from OpenSSH (any path, not only 1Password dirs).
+/// - Allows multiple files; prefers the first existing `.pub`, then the first existing file.
+/// - Returns `None` on any failure so agent-only launches still work.
+fn resolve_preferred_identity(connection: &ConnectionInfo) -> Option<PathBuf> {
+    let identities = list_identity_files(connection);
+    if identities.is_empty() {
+        return None;
+    }
+
+    identities
+        .iter()
+        .find(|path| {
+            path.extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("pub"))
+        })
+        .cloned()
+        .or_else(|| identities.into_iter().next())
+}
+
+fn list_identity_files(connection: &ConnectionInfo) -> Vec<PathBuf> {
+    let Some(ssh) = find_executable(
         "ssh.exe",
         &[env_path("WINDIR", "System32\\OpenSSH\\ssh.exe")],
-    )
-    .ok_or_else(|| "未找到 Windows OpenSSH 客户端（ssh.exe）。".to_string())?;
+    ) else {
+        return Vec::new();
+    };
 
     let mut command = Command::new(ssh);
     command.arg("-G");
@@ -406,11 +431,11 @@ fn resolve_bookmark_identity(connection: &ConnectionInfo) -> Result<PathBuf, Str
     #[cfg(windows)]
     command.creation_flags(CREATE_NO_WINDOW);
 
-    let output = command
-        .output()
-        .map_err(|error| format!("无法读取 SSH 配置：{error}"))?;
+    let Ok(output) = command.output() else {
+        return Vec::new();
+    };
     if !output.status.success() {
-        return Err("OpenSSH 无法解析该 Bookmark 的配置。".to_string());
+        return Vec::new();
     }
 
     let text = String::from_utf8_lossy(&output.stdout);
@@ -424,26 +449,21 @@ fn resolve_bookmark_identity(connection: &ConnectionInfo) -> Result<PathBuf, Str
             continue;
         }
         let value = parts.next().unwrap_or_default().trim().trim_matches('"');
+        if value.is_empty() {
+            continue;
+        }
         let path = expand_home(value);
         let normalized = path
             .to_string_lossy()
             .replace('/', "\\")
             .to_ascii_lowercase();
-        if normalized.contains("\\.ssh\\1password\\")
-            && normalized.ends_with(".pub")
-            && path.is_file()
-            && seen.insert(normalized)
-        {
+        // Trust ssh -G order; keep existing files only (public or private path).
+        if path.is_file() && seen.insert(normalized) {
             identities.push(path);
         }
     }
 
-    match identities.len() {
-        1 => Ok(identities.remove(0)),
-        count => Err(format!(
-            "无法确定唯一的 1Password 公钥（找到 {count} 个）。请刷新 1Password SSH Bookmarks。"
-        )),
-    }
+    identities
 }
 
 fn expand_home(value: &str) -> PathBuf {
