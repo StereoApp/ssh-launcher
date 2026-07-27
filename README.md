@@ -9,6 +9,10 @@ The interface supports English and Simplified Chinese. It follows the system lan
 > [!NOTE]
 > This is a **vibe coding project**. The author defined the product idea, interaction decisions, and acceptance criteria, while most of the code and visual implementation was iterated in collaboration with AI. Code review, issue reports, and contributions are welcome.
 
+## Screenshot
+
+![SSH Launcher showing WinSCP, Windows Terminal, and Open both options](assets/screenshots/ssh-launcher.png)
+
 ## Features
 
 - Parses `ssh://` links and displays the host, username, and port
@@ -186,4 +190,3 @@ Only the chooser stays on top while waiting for a selection. It closes immediate
 ## License
 
 [MIT License](LICENSE)
-

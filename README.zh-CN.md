@@ -9,6 +9,10 @@
 > [!NOTE]
 > 这是一个 **vibe coding 作品**：产品想法、交互取舍与验收由作者完成，代码和视觉实现主要在 AI 协作下迭代完成。欢迎审阅、提出问题和贡献改进。
 
+## 屏幕截图
+
+![SSH Launcher 显示 WinSCP、Windows Terminal 和同时打开选项](assets/screenshots/ssh-launcher.png)
+
 ## 功能
 
 - 接收 `ssh://` 链接并显示主机、用户名和端口
