@@ -10,9 +10,9 @@ use std::{
     path::PathBuf,
     process::Command,
     sync::Mutex,
-    time::SystemTime,
+    time::{Duration, SystemTime},
 };
-use tauri::State;
+use tauri::{Manager, State, WebviewWindow};
 use url::Url;
 
 #[cfg(windows)]
@@ -402,11 +402,141 @@ fn find_executable(name: &str, extra_candidates: &[PathBuf]) -> Option<PathBuf> 
         .cloned()
 }
 
+/// When launched by another process (e.g. 1Password via ssh://), Windows focus
+/// stealing prevention often leaves this window visible/on-top but without
+/// keyboard focus. Retry foreground activation so W/T/B shortcuts work immediately.
+fn claim_keyboard_focus(window: &WebviewWindow) {
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+
+    #[cfg(windows)]
+    if let Ok(hwnd) = window.hwnd() {
+        force_foreground_window(hwnd.0 as isize);
+        let _ = window.set_focus();
+    }
+}
+
+fn schedule_focus_retries(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        // Immediate attempts plus delayed retries after WebView finishes loading.
+        for delay_ms in [0_u64, 50, 120, 250, 500, 1000, 2000] {
+            if delay_ms > 0 {
+                std::thread::sleep(Duration::from_millis(delay_ms));
+            }
+
+            let app_for_focus = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                if let Some(window) = app_for_focus.get_webview_window("main") {
+                    claim_keyboard_focus(&window);
+                }
+            });
+        }
+    });
+}
+
+#[cfg(windows)]
+fn force_foreground_window(hwnd_value: isize) {
+    // Raw Win32 to bypass focus-stealing limits when the parent (1Password) still
+    // owns the foreground after launching us as a custom SSH URL handler.
+    type Handle = *mut std::ffi::c_void;
+    type Bool = i32;
+    type Dword = u32;
+
+    const SW_RESTORE: i32 = 9;
+    const SW_SHOW: i32 = 5;
+    const VK_MENU: u8 = 0x12;
+    const KEYEVENTF_EXTENDEDKEY: Dword = 0x0001;
+    const KEYEVENTF_KEYUP: Dword = 0x0002;
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetForegroundWindow() -> Handle;
+        fn SetForegroundWindow(hwnd: Handle) -> Bool;
+        fn BringWindowToTop(hwnd: Handle) -> Bool;
+        fn ShowWindow(hwnd: Handle, cmd: i32) -> Bool;
+        fn IsIconic(hwnd: Handle) -> Bool;
+        fn GetWindowThreadProcessId(hwnd: Handle, pid: *mut Dword) -> Dword;
+        fn AttachThreadInput(id_attach: Dword, id_attach_to: Dword, attach: Bool) -> Bool;
+        fn SetActiveWindow(hwnd: Handle) -> Handle;
+        fn SetFocus(hwnd: Handle) -> Handle;
+        fn keybd_event(vk: u8, scan: u8, flags: Dword, extra: usize);
+        fn AllowSetForegroundWindow(process_id: Dword) -> Bool;
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentThreadId() -> Dword;
+    }
+
+    unsafe {
+        let hwnd = hwnd_value as Handle;
+        if hwnd.is_null() {
+            return;
+        }
+
+        // ASFW_ANY (-1): request permission when the launcher briefly allows it.
+        let _ = AllowSetForegroundWindow(Dword::MAX);
+
+        if IsIconic(hwnd) != 0 {
+            ShowWindow(hwnd, SW_RESTORE);
+        }
+        ShowWindow(hwnd, SW_SHOW);
+
+        let foreground = GetForegroundWindow();
+        if foreground == hwnd {
+            SetFocus(hwnd);
+            return;
+        }
+
+        let foreground_thread = if foreground.is_null() {
+            0
+        } else {
+            GetWindowThreadProcessId(foreground, std::ptr::null_mut())
+        };
+        let current_thread = GetCurrentThreadId();
+
+        if foreground_thread != 0 && foreground_thread != current_thread {
+            AttachThreadInput(foreground_thread, current_thread, 1);
+        }
+
+        // Simulate Alt press/release so SetForegroundWindow is allowed.
+        keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY, 0);
+        keybd_event(VK_MENU, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+
+        BringWindowToTop(hwnd);
+        SetForegroundWindow(hwnd);
+        SetActiveWindow(hwnd);
+        SetFocus(hwnd);
+
+        if foreground_thread != 0 && foreground_thread != current_thread {
+            AttachThreadInput(foreground_thread, current_thread, 0);
+        }
+    }
+}
+
 fn main() {
     let connection = parse_connection_argument();
     tauri::Builder::default()
         .manage(AppState {
             connection: Mutex::new(connection),
+        })
+        .on_page_load(|webview, payload| {
+            if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
+                if let Some(window) = webview
+                    .app_handle()
+                    .get_webview_window(webview.label())
+                {
+                    claim_keyboard_focus(&window);
+                }
+            }
+        })
+        .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                claim_keyboard_focus(&window);
+            }
+            schedule_focus_retries(app.handle().clone());
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             get_connection_info,

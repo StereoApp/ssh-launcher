@@ -94,6 +94,23 @@ export function App() {
   }, [locale]);
 
   useEffect(() => {
+    // When launched via 1Password's ssh:// handler, the OS window can appear
+    // without keyboard focus. Re-request focus so shortcuts work without a click.
+    const claimFocus = () => {
+      window.focus();
+      getCurrentWindow()
+        .setFocus()
+        .catch(() => {
+          // Browser preview has no Tauri window bridge.
+        });
+    };
+
+    claimFocus();
+    const timers = [80, 250, 600].map((ms) => window.setTimeout(claimFocus, ms));
+    return () => timers.forEach((id) => window.clearTimeout(id));
+  }, []);
+
+  useEffect(() => {
     invoke("get_connection_info")
       .then((info) => {
         if (info) {
