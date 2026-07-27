@@ -17,7 +17,6 @@ outputs/
 # Local design and Codex workflow files
 .agents/
 .openai/
-AGENTS.md
 design-qa.md
 design-reference.png
 scripts/
