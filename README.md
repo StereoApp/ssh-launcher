@@ -243,6 +243,53 @@ Also accepted: `--theme dark`, `-theme=dark`, `auto` / `default` as aliases for 
 
 Browser / Sites preview: append `?theme=dark` (or `light` / `system`) to the URL.
 
+## Diagnostics
+
+Use **Diagnostics** when something does not connect (agent, WinSCP auth, missing apps). It reports the local environment and can produce a copy-paste report for GitHub Issues.
+
+### How to open
+
+1. Launch SSH Launcher as usual (from a 1Password Bookmark or with an `ssh://` URL).
+2. On the chooser screen, click **Diagnostics** in the footer.
+3. Or start directly on that screen:
+
+```text
+SSH-Launcher.exe --diagnostics "ssh://user@host"
+```
+
+Aliases: `-diagnostics`, `--diagnose`. Press **Esc** (or **Back**) to return to the chooser.
+
+### What it checks
+
+| Check | Meaning |
+|-------|---------|
+| Windows OpenSSH | `ssh.exe` path and version |
+| Agent pipe | Whether `\\.\pipe\openssh-ssh-agent` is available (1Password or another OpenSSH-compatible agent) |
+| Windows Terminal | Whether `wt.exe` was found |
+| WinSCP install / version | Installed path; needs **6.6.1+** for OpenSSH agent |
+| WinSCP agent setting | Registry/INI `AuthAgent` (should be OpenSSH, not Pageant) |
+| Cyberduck | Only critical if you use `--sftp=cyberduck` |
+| 1Password SSH config | `~\.ssh\1Password\config` exists |
+| ssh config Include | Main `~\.ssh\config` includes the 1Password file |
+| IdentityFile | What `ssh -G` resolves for the current Bookmark (and what WinSCP would prefer) |
+
+Statuses: **OK** / **Warn** / **Fail** / **Unknown** (unknown means the app could not read that setting—not always a hard error).
+
+### Buttons
+
+| Button | Action |
+|--------|--------|
+| **Refresh** | Re-run automatic checks (does **not** run `ssh-add`) |
+| **List agent keys** | Runs `ssh-add -l` and rebuilds the report. May show a **1Password approval** prompt |
+| **Copy report** | Copies plain-text output for pasting into an issue |
+| **Back** | Return to WinSCP / Terminal / Open both |
+
+### Tips
+
+- Prefer **Copy report** over screenshots when filing issues.
+- Agent pipe “available” means *some* OpenSSH agent is listening—not always 1Password specifically.
+- If WinSCP auth fails, check version ≥ 6.6.1 and Authentication agent = **OpenSSH ssh-agent**, then use **List agent keys**.
+
 ## Portable migration
 
 The release artifact is a standalone `.exe`. It does not depend on the source folder and does not store private keys.

@@ -238,6 +238,53 @@ SSH-Launcher.exe --light "ssh://user@host"
 
 浏览器 / Sites 预览：在 URL 后加 `?theme=dark`（或 `light` / `system`）。
 
+## 环境诊断
+
+连不上、Agent 不弹窗、WinSCP 认证失败时，用 **环境诊断** 看本机配置。可一键复制报告，方便贴到 GitHub Issue。
+
+### 怎么打开
+
+1. 正常启动 SSH Launcher（从 1Password Bookmark，或带 `ssh://` 参数）。
+2. 在选择打开方式界面，点页脚的 **环境诊断**。
+3. 或启动时直接进入诊断：
+
+```text
+SSH-Launcher.exe --diagnostics "ssh://user@host"
+```
+
+也支持：`-diagnostics`、`--diagnose`。按 **Esc**（或 **返回**）回到选择界面。
+
+### 会检查什么
+
+| 检查项 | 含义 |
+|--------|------|
+| Windows OpenSSH | `ssh.exe` 路径与版本 |
+| Agent 管道 | `\\.\pipe\openssh-ssh-agent` 是否可用（1Password 或其他 OpenSSH 兼容 Agent） |
+| Windows Terminal | 是否找到 `wt.exe` |
+| WinSCP 安装 / 版本 | 安装路径；要用 OpenSSH Agent 需 **6.6.1+** |
+| WinSCP Agent 设置 | 注册表/INI 中的 `AuthAgent`（应为 OpenSSH，不是 Pageant） |
+| Cyberduck | 仅在使用 `--sftp=cyberduck` 时关键 |
+| 1Password SSH 配置 | `~\.ssh\1Password\config` 是否存在 |
+| ssh config Include | 主配置 `~\.ssh\config` 是否 Include 了 1Password 配置 |
+| IdentityFile | 当前 Bookmark 经 `ssh -G` 解析到的密钥（以及 WinSCP 会优先用哪把） |
+
+状态：**通过** / **警告** / **失败** / **未知**（未知表示读不到该项，不一定是硬错误）。
+
+### 按钮
+
+| 按钮 | 作用 |
+|------|------|
+| **重新检测** | 再跑自动检查（**不会**执行 `ssh-add`） |
+| **列出 Agent 密钥** | 执行 `ssh-add -l` 并刷新整份报告，可能弹出 **1Password 授权** |
+| **复制报告** | 复制纯文本，便于贴到 Issue |
+| **返回** | 回到 WinSCP / Terminal / 同时打开 |
+
+### 提示
+
+- 提 Issue 时优先贴 **复制报告**，比截图更有用。
+- 管道「可用」只说明有 OpenSSH 兼容 Agent 在监听，不保证一定是 1Password。
+- WinSCP 认证失败时：先确认版本 ≥ 6.6.1，且 Authentication agent = **OpenSSH ssh-agent**，再用 **列出 Agent 密钥**。
+
 ## 便携迁移
 
 发布产物是一个独立 `.exe`，不会依赖项目目录，也不会保存私钥。迁移时：
