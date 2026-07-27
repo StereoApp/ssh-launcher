@@ -1,0 +1,34 @@
+{
+  "name": "ssh-launcher",
+  "version": "1.1.0",
+  "description": "Choose WinSCP, Windows Terminal, or both when opening 1Password SSH bookmarks.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StereoApp/ssh-launcher.git"
+  },
+  "bugs": {
+    "url": "https://github.com/StereoApp/ssh-launcher/issues"
+  },
+  "homepage": "https://github.com/StereoApp/ssh-launcher#readme",
+  "private": false,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:client": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build --no-bundle"
+  },
+  "dependencies": {
+    "@fluentui/react-icons": "^2.0.334",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/cli": "^2.11.4",
+    "@vitejs/plugin-react": "5.0.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "vite": "6.4.2"
+  }
+}
