@@ -1,6 +1,6 @@
 {
   "name": "ssh-launcher",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Choose WinSCP, Windows Terminal, or both when opening 1Password SSH bookmarks.",
   "license": "MIT",
   "repository": {
