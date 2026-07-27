@@ -43,7 +43,6 @@ export const messages = {
       cyberduckMissing: "未找到 Cyberduck。请先安装 Cyberduck。",
       terminalMissing: "未找到 Windows Terminal。",
       opensshMissing: "未找到 Windows OpenSSH 客户端。",
-      identityMissing: "无法确定唯一的 1Password 公钥，请刷新 SSH Bookmarks。",
       generic: "无法启动所选应用。",
     },
   },
@@ -89,8 +88,6 @@ export const messages = {
       cyberduckMissing: "Cyberduck was not found. Install Cyberduck first.",
       terminalMissing: "Windows Terminal was not found.",
       opensshMissing: "The Windows OpenSSH client was not found.",
-      identityMissing:
-        "A unique 1Password public key could not be resolved. Refresh your SSH Bookmarks.",
       generic: "The selected application could not be launched.",
     },
   },
@@ -116,6 +113,5 @@ export function localizeBackendError(error, locale) {
   if (text.includes("WinSCP.exe") || text.includes("未找到 WinSCP")) return t.errors.winscpMissing;
   if (text.includes("Windows Terminal") && text.includes("未找到")) return t.errors.terminalMissing;
   if (text.includes("OpenSSH") && text.includes("未找到")) return t.errors.opensshMissing;
-  if (text.includes("1Password 公钥")) return t.errors.identityMissing;
   return t.errors.generic;
 }

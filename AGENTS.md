@@ -28,7 +28,7 @@ Do not reverse these without an explicit user decision:
 4. **Three actions only**: SFTP GUI, Windows Terminal, Open both. The combined action must show the **real SFTP app and Windows Terminal icons** together.
 5. **SFTP GUI is mutually exclusive**: **WinSCP** (default) or **Cyberduck**, selected only via CLI (`--sftp=winscp|cyberduck`, or `--winscp` / `--cyberduck`). Not an in-app toggle; UI always shows one SFTP card.
 6. **CLI contract**: accept a 1Password SSH Bookmark URL as a meaningful argument (`ssh://...`). 1Password is configured as: `"…\SSH-Launcher.exe" %s` (optional flags before `%s`).
-7. **Never handle private keys**. Auth stays with the 1Password SSH Agent; this app only launches tools with the parsed host/user/port (WinSCP may pass a bookmark public key path for identity matching only).
+7. **Never handle private keys**. Auth stays with the 1Password SSH Agent; this app only launches tools with the parsed host/user/port. WinSCP may optionally get `/privatekey=` from `ssh -G` `IdentityFile` (prefer first existing `.pub`) for multi-key agent matching; missing/non-unique identities must **not** block launch (agent-only).
 8. **i18n**: English (`en-US`) and Simplified Chinese (`zh-CN`). Default from system/WebView language; user can switch; preference in `localStorage` key `ssh-launcher-locale`.
 9. **Theme**: light / dark. Default **follow system**. Override via CLI (`--theme=system|light|dark`, `--dark`, `--light`). Not a durable in-app toggle unless product decision changes.
 
