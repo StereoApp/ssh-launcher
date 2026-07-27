@@ -14,6 +14,10 @@ import {
   supportedLocales,
 } from "./i18n";
 import {
+  normalizeSftpClient,
+  resolvePreviewSftpClient,
+} from "./sftp";
+import {
   applyDocumentTheme,
   normalizeThemePreference,
   resolvePreviewThemePreference,
@@ -28,6 +32,7 @@ const demoConnection = {
   displayTarget: "demo@server.example.com:2222",
 };
 
+// Action id "winscp" is the SFTP slot (shortcut W); the concrete GUI is CLI-selected.
 const actionDefinitions = [
   { id: "winscp", key: "W" },
   { id: "terminal", key: "T" },
@@ -38,12 +43,14 @@ function IconImage({ src, fallback: Fallback = PlugConnectedRegular }) {
   return src ? <img src={src} alt="" /> : <Fallback aria-hidden="true" />;
 }
 
-function AppIcon({ type, icons }) {
+function AppIcon({ type, icons, sftpClient }) {
+  const sftpIcon = icons[sftpClient] || icons.winscp;
+
   if (type === "both") {
     return (
       <span className="app-icon app-icon--combined" aria-hidden="true">
-        <span className="combined-tile combined-tile--winscp">
-          <IconImage src={icons.winscp} fallback={ServerRegular} />
+        <span className="combined-tile combined-tile--sftp">
+          <IconImage src={sftpIcon} fallback={ServerRegular} />
         </span>
         <span className="combined-tile combined-tile--terminal">
           <IconImage src={icons.terminal} />
@@ -52,12 +59,17 @@ function AppIcon({ type, icons }) {
     );
   }
 
+  if (type === "winscp") {
+    return (
+      <span className="app-icon" aria-hidden="true">
+        <IconImage src={sftpIcon} fallback={ServerRegular} />
+      </span>
+    );
+  }
+
   return (
     <span className="app-icon" aria-hidden="true">
-      <IconImage
-        src={type === "winscp" ? icons.winscp : icons.terminal}
-        fallback={type === "winscp" ? ServerRegular : PlugConnectedRegular}
-      />
+      <IconImage src={icons.terminal} fallback={PlugConnectedRegular} />
     </span>
   );
 }
@@ -67,8 +79,13 @@ export function App() {
   const [themePreference, setThemePreference] = useState(
     resolvePreviewThemePreference,
   );
+  const [sftpClient, setSftpClient] = useState(resolvePreviewSftpClient);
   const [connection, setConnection] = useState(demoConnection);
-  const [icons, setIcons] = useState({ winscp: null, terminal: null });
+  const [icons, setIcons] = useState({
+    winscp: null,
+    cyberduck: null,
+    terminal: null,
+  });
   const [active, setActive] = useState("both");
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
@@ -77,11 +94,17 @@ export function App() {
 
   const actions = useMemo(
     () =>
-      actionDefinitions.map((item) => ({
-        ...item,
-        ...t.actions[item.id],
-      })),
-    [t],
+      actionDefinitions.map((item) => {
+        if (item.id === "winscp") {
+          const sftpCopy = t.actions[sftpClient] || t.actions.winscp;
+          return { ...item, ...sftpCopy };
+        }
+        return {
+          ...item,
+          ...t.actions[item.id],
+        };
+      }),
+    [t, sftpClient],
   );
 
   const target = useMemo(() => {
@@ -142,6 +165,14 @@ export function App() {
         // Browser preview keeps query-string / system theme preference.
       });
 
+    invoke("get_sftp_preference")
+      .then((preference) => {
+        setSftpClient(normalizeSftpClient(preference));
+      })
+      .catch(() => {
+        // Browser preview keeps query-string SFTP preference.
+      });
+
     invoke("get_connection_info")
       .then((info) => {
         if (info) {
@@ -197,7 +228,7 @@ export function App() {
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [busy, connection.valid, locale]);
+  }, [busy, connection.valid, locale, sftpClient]);
 
   return (
     <main className="launcher-shell">
@@ -265,7 +296,7 @@ export function App() {
               disabled={Boolean(busy) || !connection.valid}
               aria-label={`${item.title}, ${item.subtitle}, ${t.shortcut} ${item.key}`}
             >
-              <AppIcon type={item.id} icons={icons} />
+              <AppIcon type={item.id} icons={icons} sftpClient={sftpClient} />
               <span className="action-copy">
                 <strong>{item.title}</strong>
                 <span>{busy === item.id ? t.launching : item.subtitle}</span>

@@ -2,7 +2,7 @@
 
 简体中文 | [English](README.md)
 
-一个面向 Windows 的轻量 SSH 启动器。当你从 1Password 打开 SSH Bookmark 时，可以选择使用 **WinSCP**、**Windows Terminal**，或**同时打开两者**。
+一个面向 Windows 的轻量 SSH 启动器。当你从 1Password 打开 SSH Bookmark 时，可以选择 **SFTP GUI**（默认 WinSCP，可选 Cyberduck）、**Windows Terminal**，或**同时打开两者**。
 
 界面提供简体中文和 English，会根据系统语言自动选择，也可以在窗口右上角手动切换。
 
@@ -16,21 +16,22 @@
 ## 功能
 
 - 接收 `ssh://` 链接并显示主机、用户名和端口
-- 一键用 WinSCP、Windows Terminal 或两者同时连接
+- 一键用 SFTP GUI（WinSCP 或 Cyberduck）、Windows Terminal 或两者同时连接
 - 支持快捷键：`W`、`T`、`B`
 - 选择打开方式后自动关闭启动器
 - 窗口置顶，避免被刚刚打开的应用遮挡
-- 自动查找 WinSCP，无需把 `winscp.exe` 加入 `PATH`
-- 从本机程序文件动态读取 WinSCP 和 Windows Terminal 图标
+- 自动查找 WinSCP / Cyberduck，无需加入 `PATH`
+- 从本机程序文件动态读取应用图标
 - 支持简体中文与 English
 - 支持浅色 / 深色主题：默认跟随系统，也可通过启动参数指定
+- 通过命令行选择 SFTP 客户端（默认 `--sftp=winscp`，或 `--sftp=cyberduck`）
 - 单文件便携版，可复制到其他 Windows 电脑使用
 
 ## 使用条件
 
 - Windows 10 或 Windows 11
 - [1Password 8 for Windows](https://1password.com/downloads/windows/)，并启用 SSH Agent
-- [WinSCP](https://winscp.net/) **6.6.1 或更高版本**（要用 1Password / OpenSSH Agent 做文件传输时，见下文）
+- [WinSCP](https://winscp.net/) **6.6.1 或更高版本**（默认 SFTP GUI）**或** [Cyberduck](https://cyberduck.io/)（要用 1Password / OpenSSH Agent 做文件传输时，见下文）
 - Windows Terminal（需要使用终端 SSH 功能时）
 - Windows 自带的 OpenSSH Client
 - Microsoft Edge WebView2 Runtime（Windows 10/11 通常已安装）
@@ -103,6 +104,14 @@ WinSCP 默认使用 **Pageant**。对接 1Password 时必须改为 **OpenSSH ssh
 "C:\Tools\SSH-Launcher\SSH-Launcher.exe" --theme=dark %s
 ```
 
+若要用 **Cyberduck** 代替 WinSCP 作为 SFTP 操作（互斥，默认是 WinSCP）：
+
+```text
+"C:\Tools\SSH-Launcher\SSH-Launcher.exe" --sftp=cyberduck %s
+```
+
+简写：`--cyberduck`。等价写法：`--sftp cyberduck`。
+
 ### 5. 创建并打开 SSH Bookmark
 
 在 1Password 中创建 SSH Bookmark，链接可以使用以下格式：
@@ -115,9 +124,9 @@ ssh://example.com
 
 从 Bookmark 点击打开后，SSH Launcher 会显示解析出的连接信息。请选择：
 
-- **WinSCP**：打开安全文件传输会话
+- **WinSCP** 或 **Cyberduck**（由启动参数决定）：打开安全文件传输会话
 - **Windows Terminal**：打开命令行 SSH 会话
-- **同时打开**：同时启动 WinSCP 和 Windows Terminal
+- **同时打开**：同时启动 SFTP 客户端和 Windows Terminal
 
 也可以直接按 `W`、`T` 或 `B`。选择完成后，SSH Launcher 会自动关闭。
 
@@ -135,11 +144,30 @@ ssh://example.com
 
 6.6.1 之前的 WinSCP 需要 [winssh-pageant](https://github.com/ndbeals/winssh-pageant) 之类的桥接工具。本项目推荐直接升级 WinSCP，而不是走桥接方案。
 
-## WinSCP 无需加入 PATH
+## 选择 SFTP 客户端（WinSCP 或 Cyberduck）
+
+第一个操作按钮是唯一的 SFTP GUI。**WinSCP 与 Cyberduck 互斥**，只能通过启动参数选择（应用内无切换开关）。
+
+| 参数 | SFTP GUI |
+|------|----------|
+| （默认）/ `--sftp=winscp` / `--winscp` | [WinSCP](https://winscp.net/) |
+| `--sftp=cyberduck` / `--cyberduck` | [Cyberduck](https://cyberduck.io/) |
+
+示例：
+
+```text
+SSH-Launcher.exe "ssh://user@host"
+SSH-Launcher.exe --sftp=cyberduck "ssh://user@host"
+SSH-Launcher.exe --theme=dark --cyberduck "ssh://user@host"
+```
+
+Cyberduck 使用 Windows OpenSSH Agent 管道（与 1Password SSH Agent 兼容），不需要 Pageant 桥接。
+
+## WinSCP / Cyberduck 无需加入 PATH
 
 SSH Launcher 会依次查找系统 `PATH`、当前用户的本地应用目录、`Program Files` 和 `Program Files (x86)`。
 
-使用常规安装方式安装 WinSCP 即可。如果使用自定义绿色版，请把 `WinSCP.exe` 所在目录加入系统 `PATH`。
+使用常规安装方式即可。如果使用自定义绿色版，请把可执行文件所在目录加入系统 `PATH`。
 
 ## 多语言
 
@@ -200,6 +228,22 @@ src-tauri\target\release\ssh-launcher.exe
 ```
 
 仅构建前端可运行 `npm run build`；开发模式可运行 `npm run tauri:dev`。
+
+## 发版
+
+推送版本 tag 后，GitHub Actions 会构建 Windows 便携版并通过 [GitHub Release](https://github.com/StereoApp/ssh-launcher/releases) 发布。
+
+1. 保持版本号一致：`package.json`、`src-tauri/Cargo.toml`、`src-tauri/tauri.conf.json`。
+2. 提交后打 tag 并推送：
+
+```powershell
+git tag v1.1.1
+git push origin v1.1.1
+```
+
+3. **Release** 工作流会生成 `SSH-Launcher.exe` 与 `SHA256SUMS.txt`，并用 `gh release create` 创建发布说明。
+
+也可在 **Actions → Release → Run workflow** 中手动触发：仅构建，或对已有 tag 重新上传产物。
 
 ## 常见问题
 

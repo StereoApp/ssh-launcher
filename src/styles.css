@@ -428,6 +428,7 @@ button {
   object-fit: contain;
 }
 
+.combined-tile--sftp,
 .combined-tile--winscp {
   top: 1px;
   left: 1px;

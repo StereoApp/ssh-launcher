@@ -2,7 +2,7 @@
 
 [简体中文](README.zh-CN.md) | English
 
-A lightweight Windows launcher for 1Password SSH Bookmarks. When an `ssh://` link is opened, choose **WinSCP**, **Windows Terminal**, or **both**.
+A lightweight Windows launcher for 1Password SSH Bookmarks. When an `ssh://` link is opened, choose an **SFTP GUI** (WinSCP by default, or Cyberduck), **Windows Terminal**, or **both**.
 
 The interface supports English and Simplified Chinese. It follows the system language by default and can be switched manually.
 
@@ -16,21 +16,22 @@ The interface supports English and Simplified Chinese. It follows the system lan
 ## Features
 
 - Parses `ssh://` links and displays the host, username, and port
-- Opens WinSCP, Windows Terminal, or both
+- Opens an SFTP GUI (WinSCP or Cyberduck), Windows Terminal, or both
 - Keyboard shortcuts: `W`, `T`, and `B`
 - Closes automatically after an option is selected
 - Keeps the chooser on top until a selection is made
-- Finds WinSCP in common installation locations; `winscp.exe` does not need to be in `PATH`
-- Reads WinSCP and Windows Terminal icons from locally installed applications at runtime
+- Finds WinSCP / Cyberduck in common installation locations (not required on `PATH`)
+- Reads app icons from locally installed applications at runtime
 - English and Simplified Chinese interface
 - Light / dark theme: follows the system by default, override with launch arguments
+- SFTP client selection via CLI (`--sftp=winscp` default, or `--sftp=cyberduck`)
 - Portable single-file executable
 
 ## Requirements
 
 - Windows 10 or Windows 11
 - [1Password 8 for Windows](https://1password.com/downloads/windows/) with SSH Agent enabled
-- [WinSCP](https://winscp.net/) **6.6.1 or newer** for file transfer with the 1Password / OpenSSH agent (see below)
+- [WinSCP](https://winscp.net/) **6.6.1 or newer** (default SFTP GUI) **or** [Cyberduck](https://cyberduck.io/) for file transfer with the 1Password / OpenSSH agent (see below)
 - Windows Terminal for terminal SSH sessions
 - Windows OpenSSH Client
 - Microsoft Edge WebView2 Runtime, normally included with Windows 10/11
@@ -103,6 +104,14 @@ To force a theme from 1Password, put the theme flag before `%s`:
 "C:\Tools\SSH-Launcher\SSH-Launcher.exe" --theme=dark %s
 ```
 
+To use **Cyberduck** instead of WinSCP for the SFTP action (mutually exclusive; default is WinSCP):
+
+```text
+"C:\Tools\SSH-Launcher\SSH-Launcher.exe" --sftp=cyberduck %s
+```
+
+Short form: `--cyberduck`. Equivalent: `--sftp cyberduck`.
+
 ### 5. Create and open an SSH Bookmark
 
 Create an SSH Bookmark in 1Password. Supported URL examples:
@@ -115,7 +124,7 @@ ssh://example.com
 
 Open the Bookmark and select:
 
-- **WinSCP** for a secure file-transfer session
+- **WinSCP** or **Cyberduck** (whichever SFTP client you selected via CLI) for a secure file-transfer session
 - **Windows Terminal** for a command-line SSH session
 - **Open both** to start both applications
 
@@ -135,16 +144,35 @@ You can also press `W`, `T`, or `B`. SSH Launcher closes automatically after lau
 
 Older WinSCP builds (before 6.6.1) need a bridge such as [winssh-pageant](https://github.com/ndbeals/winssh-pageant). That is outside the recommended path for this project; upgrade WinSCP instead.
 
-## WinSCP does not need to be in PATH
+## SFTP client selection (WinSCP or Cyberduck)
 
-SSH Launcher searches these locations:
+The first chooser action is a single SFTP GUI. **WinSCP and Cyberduck are mutually exclusive** — pick one with a launch argument (not an in-app toggle).
+
+| Flag | SFTP GUI |
+|------|----------|
+| *(default)* / `--sftp=winscp` / `--winscp` | [WinSCP](https://winscp.net/) |
+| `--sftp=cyberduck` / `--cyberduck` | [Cyberduck](https://cyberduck.io/) |
+
+Examples:
+
+```text
+SSH-Launcher.exe "ssh://user@host"
+SSH-Launcher.exe --sftp=cyberduck "ssh://user@host"
+SSH-Launcher.exe --theme=dark --cyberduck "ssh://user@host"
+```
+
+Cyberduck uses the Windows OpenSSH agent pipe (compatible with the 1Password SSH Agent). No Pageant bridge is required for Cyberduck.
+
+## WinSCP / Cyberduck do not need to be in PATH
+
+SSH Launcher searches these locations for each SFTP client:
 
 1. System `PATH`
-2. The current user's local application directory
+2. The current user's local application directory (WinSCP / Cyberduck under `Programs`)
 3. `Program Files`
 4. `Program Files (x86)`
 
-A standard WinSCP installation should work without additional configuration. For a portable/custom WinSCP installation, add its directory to `PATH`.
+A standard installation should work without additional configuration. For a portable/custom install, add its directory to `PATH`.
 
 ## Languages
 
@@ -220,6 +248,22 @@ Development mode:
 ```powershell
 npm run tauri:dev
 ```
+
+## Releasing
+
+GitHub Actions builds the portable Windows executable and publishes a [GitHub Release](https://github.com/StereoApp/ssh-launcher/releases) when you push a version tag.
+
+1. Keep versions in sync: `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json`.
+2. Commit, then tag and push:
+
+```powershell
+git tag v1.1.1
+git push origin v1.1.1
+```
+
+3. The **Release** workflow builds `SSH-Launcher.exe`, attaches `SHA256SUMS.txt`, and creates the release with `gh release create` (notes generated from commits).
+
+You can also run **Actions → Release → Run workflow** to rebuild only, or rebuild and re-upload assets for an existing tag.
 
 ## Troubleshooting
 
