@@ -22,7 +22,7 @@ A script or a stock Windows dialog would work functionally. I still made a prope
 
 ## Screenshot
 
-![SSH Launcher showing WinSCP, Windows Terminal, and Open both options](assets/screenshots/ssh-launcher.png)
+![SSH Launcher light and dark themes, split diagonal preview](assets/screenshots/dual-theme-preview-en.png)
 
 ## Features
 

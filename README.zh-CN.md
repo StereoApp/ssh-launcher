@@ -22,7 +22,7 @@ SSH 密钥都在 **1Password** 里，认证走 SSH Agent 没问题。麻烦的�
 
 ## 屏幕截图
 
-![SSH Launcher 显示 WinSCP、Windows Terminal 和同时打开选项](assets/screenshots/ssh-launcher.png)
+![SSH Launcher 浅色与深色主题对角预览](assets/screenshots/dual-theme-preview-cn.png)
 
 ## 功能
 
