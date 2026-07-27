@@ -29,10 +29,13 @@
 
 - Windows 10 或 Windows 11
 - [1Password 8 for Windows](https://1password.com/downloads/windows/)，并启用 SSH Agent
-- [WinSCP](https://winscp.net/)（需要使用文件传输功能时）
+- [WinSCP](https://winscp.net/) **6.6.1 或更高版本**（要用 1Password / OpenSSH Agent 做文件传输时，见下文）
 - Windows Terminal（需要使用终端 SSH 功能时）
 - Windows 自带的 OpenSSH Client
 - Microsoft Edge WebView2 Runtime（Windows 10/11 通常已安装）
+
+> [!IMPORTANT]
+> **WinSCP 从 [6.6.1 beta](https://winscp.net/eng/docs/history?a=6.6.1) 起才原生支持 OpenSSH `ssh-agent`**（[需求 #1682](https://winscp.net/tracker/1682)）。此前的正式版（含整个 6.5.x 系列）默认只对接 **PuTTY Pageant**，**不能**直接使用 1Password SSH Agent。请安装 **WinSCP 6.6.1+**（在并入正式版之前属于非稳定 / beta 通道），并按下文切换认证代理。
 
 ## 快速开始
 
@@ -54,8 +57,32 @@ C:\Tools\SSH-Launcher\SSH-Launcher.exe
 2. 开启 **使用 SSH Agent（Use the SSH Agent）**。
 3. 确认需要连接的 SSH 私钥已保存在 1Password 中。
 4. 如果希望 Bookmark 自动使用对应密钥，请开启高级选项中的 **Generate SSH config files from 1Password SSH bookmarks**。
+5. 若 1Password 提示禁用 Windows 的 **OpenSSH Authentication Agent** 服务，请同意（也可自行在服务里停止/禁用）。之后由 1Password 占用标准管道 `\\.\pipe\openssh-ssh-agent`。
 
-### 3. 设置 SSH 链接的打开方式
+可用下面命令确认 OpenSSH 客户端能看到 Agent：
+
+```powershell
+ssh-add -l
+```
+
+在 1Password 授权提示通过后，应能列出你的密钥。
+
+### 3. 配置 WinSCP 使用 OpenSSH Agent（必做）
+
+WinSCP 默认使用 **Pageant**。对接 1Password 时必须改为 **OpenSSH ssh-agent**。
+
+1. 安装 [WinSCP 6.6.1 或更高版本](https://winscp.net/eng/download.php)（在功能进入正式版前可使用 beta / 非稳定版）。在 **帮助 → 关于** 中确认版本 ≥ **6.6.1**。
+2. 打开 **选项（Options）→ 首选项（Preferences）→ 安全（Security）**。
+3. 在 **Authentication（身份验证）** 区域，将 **Authentication agent（身份验证代理）** 设为 **OpenSSH ssh-agent**（不要用 Pageant）。  
+   官方说明：[Security preferences](https://winscp.net/eng/docs/ui_pref_security#authentication)。
+4. 对每个站点（或默认会话模板），打开 **高级（Advanced…）→ SSH → Authentication**，保持 **Attempt authentication using agent（尝试使用代理进行身份验证）** 为启用（默认已开）。  
+   官方说明：[Authentication page](https://winscp.net/eng/docs/ui_login_authentication)。
+5. 密钥只放在 1Password 时，**Private key file（私钥文件）** 请留空（纯 Agent 登录）。
+6. 确定并保存站点后重新连接一次，确认会出现 1Password 授权提示。
+
+若跳过本步，本启动器仍可打开 WinSCP，但 SFTP 登录不会走 1Password Agent。
+
+### 4. 设置 SSH 链接的打开方式
 
 仍在 1Password 的 **设置 → 开发者 → SSH Agent → 高级（Advanced）** 中：
 
@@ -69,7 +96,7 @@ C:\Tools\SSH-Launcher\SSH-Launcher.exe
 
 必须保留末尾的 `%s`，1Password 会在这里传入 `ssh://` 链接。
 
-### 4. 创建并打开 SSH Bookmark
+### 5. 创建并打开 SSH Bookmark
 
 在 1Password 中创建 SSH Bookmark，链接可以使用以下格式：
 
@@ -86,6 +113,20 @@ ssh://example.com
 - **同时打开**：同时启动 WinSCP 和 Windows Terminal
 
 也可以直接按 `W`、`T` 或 `B`。选择完成后，SSH Launcher 会自动关闭。
+
+## WinSCP 与 OpenSSH Agent
+
+| 项目 | 说明 |
+|------|------|
+| 原生支持 OpenSSH Agent 的首个版本 | **WinSCP 6.6.1 beta**（2026-04-01） |
+| 需求跟踪 | [#1682 — Support OpenSSH ssh-agent](https://winscp.net/tracker/1682) |
+| 更新日志 | [6.6.1 history](https://winscp.net/eng/docs/history?a=6.6.1)：“Support for OpenSSH ssh-agent” |
+| 未切换时的默认代理 | PuTTY **Pageant** |
+| 切换位置 | **首选项 → 安全 → Authentication agent → OpenSSH ssh-agent** |
+| 会话级开关 | **高级 → SSH → Authentication → Attempt authentication using agent** |
+| 与本项目的关系 | 1Password 在 Windows 上实现的是 **OpenSSH** Agent 协议，不是 Pageant |
+
+6.6.1 之前的 WinSCP 需要 [winssh-pageant](https://github.com/ndbeals/winssh-pageant) 之类的桥接工具。本项目推荐直接升级 WinSCP，而不是走桥接方案。
 
 ## WinSCP 无需加入 PATH
 
@@ -138,6 +179,14 @@ src-tauri\target\release\ssh-launcher.exe
 ### WinSCP 提示找不到
 
 建议使用 WinSCP 官方安装程序安装到默认目录。绿色版需要把其目录加入系统 `PATH`。
+
+### WinSCP 能打开，但认证失败 / 没有 1Password 授权提示
+
+1. 确认 WinSCP 版本 ≥ **6.6.1**（**帮助 → 关于**）。更早版本不支持原生 OpenSSH Agent。
+2. 将 **首选项 → 安全 → Authentication agent** 设为 **OpenSSH ssh-agent**。
+3. 确认会话里已启用 **Attempt authentication using agent**。
+4. 保持 1Password SSH Agent 开启，并确保 Windows **OpenSSH Authentication Agent** 服务没有占用 Agent 管道。
+5. 先在终端运行 `ssh-add -l`；若这里都列不出密钥，先修好 1Password，再排查 WinSCP。
 
 ### Windows Terminal 无法打开
 
