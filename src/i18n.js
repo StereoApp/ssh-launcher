@@ -22,6 +22,10 @@ export const messages = {
         title: "WinSCP",
         subtitle: "安全文件传输",
       },
+      cyberduck: {
+        title: "Cyberduck",
+        subtitle: "安全文件传输",
+      },
       terminal: {
         title: "Windows Terminal",
         subtitle: "命令行 SSH 会话",
@@ -36,6 +40,7 @@ export const messages = {
       invalidUrl: "SSH Bookmark URL 格式无效。",
       missingHost: "SSH Bookmark 缺少主机名。",
       winscpMissing: "未找到 WinSCP。请先安装 WinSCP。",
+      cyberduckMissing: "未找到 Cyberduck。请先安装 Cyberduck。",
       terminalMissing: "未找到 Windows Terminal。",
       opensshMissing: "未找到 Windows OpenSSH 客户端。",
       identityMissing: "无法确定唯一的 1Password 公钥，请刷新 SSH Bookmarks。",
@@ -63,6 +68,10 @@ export const messages = {
         title: "WinSCP",
         subtitle: "Secure file transfer",
       },
+      cyberduck: {
+        title: "Cyberduck",
+        subtitle: "Secure file transfer",
+      },
       terminal: {
         title: "Windows Terminal",
         subtitle: "Command-line SSH session",
@@ -77,6 +86,7 @@ export const messages = {
       invalidUrl: "The SSH Bookmark URL is invalid.",
       missingHost: "The SSH Bookmark does not include a host.",
       winscpMissing: "WinSCP was not found. Install WinSCP first.",
+      cyberduckMissing: "Cyberduck was not found. Install Cyberduck first.",
       terminalMissing: "Windows Terminal was not found.",
       opensshMissing: "The Windows OpenSSH client was not found.",
       identityMissing:
@@ -100,6 +110,9 @@ export function localizeBackendError(error, locale) {
   if (text.includes("SSH Bookmark URL 格式无效")) return t.errors.invalidUrl;
   if (text.includes("SSH Bookmark 缺少主机名")) return t.errors.missingHost;
   if (text.includes("SSH Bookmark") && text.includes("打开连接")) return t.errors.noBookmark;
+  if (text.includes("Cyberduck") && (text.includes("未找到") || text.includes("无法启动"))) {
+    return t.errors.cyberduckMissing;
+  }
   if (text.includes("WinSCP.exe") || text.includes("未找到 WinSCP")) return t.errors.winscpMissing;
   if (text.includes("Windows Terminal") && text.includes("未找到")) return t.errors.terminalMissing;
   if (text.includes("OpenSSH") && text.includes("未找到")) return t.errors.opensshMissing;

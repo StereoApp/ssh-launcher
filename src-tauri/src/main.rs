@@ -54,6 +54,37 @@ impl ThemePreference {
     }
 }
 
+/// Mutually exclusive SFTP GUI client. Selected via CLI; default WinSCP.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SftpClient {
+    WinScp,
+    Cyberduck,
+}
+
+impl SftpClient {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::WinScp => "winscp",
+            Self::Cyberduck => "cyberduck",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "winscp" | "win-scp" | "win_scp" => Some(Self::WinScp),
+            "cyberduck" | "cyber-duck" | "duck" => Some(Self::Cyberduck),
+            _ => None,
+        }
+    }
+
+    fn display_name(self) -> &'static str {
+        match self {
+            Self::WinScp => "WinSCP",
+            Self::Cyberduck => "Cyberduck",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ConnectionInfo {
@@ -69,11 +100,13 @@ struct ConnectionInfo {
 struct AppState {
     connection: Mutex<ConnectionInfo>,
     theme_preference: ThemePreference,
+    sftp_client: SftpClient,
 }
 
 #[derive(Clone, Debug, Serialize)]
 struct AppIcons {
     winscp: Option<String>,
+    cyberduck: Option<String>,
     terminal: Option<String>,
 }
 
@@ -92,9 +125,15 @@ fn get_theme_preference(state: State<'_, AppState>) -> String {
 }
 
 #[tauri::command]
+fn get_sftp_preference(state: State<'_, AppState>) -> String {
+    state.sftp_client.as_str().to_string()
+}
+
+#[tauri::command]
 fn get_app_icons() -> AppIcons {
     AppIcons {
         winscp: find_winscp().and_then(|path| extract_icon_data_url(&path)),
+        cyberduck: find_cyberduck().and_then(|path| extract_icon_data_url(&path)),
         terminal: find_terminal_icon_source().and_then(|path| extract_icon_data_url(&path)),
     }
 }
@@ -110,6 +149,8 @@ fn launch_choice(
         .lock()
         .map_err(|_| "无法读取连接信息。".to_string())?
         .clone();
+    let sftp_client = state.sftp_client;
+    let sftp_name = sftp_client.display_name();
 
     if !connection.valid {
         return Err(connection
@@ -118,20 +159,25 @@ fn launch_choice(
     }
 
     let result = match choice.as_str() {
-        "winscp" => {
-            launch_winscp(&connection).map(|_| "WinSCP 已启动".to_string())
+        // "winscp" remains the action id / shortcut W; dispatches to the selected SFTP GUI.
+        "winscp" | "sftp" => {
+            launch_sftp(&connection, sftp_client).map(|_| format!("{sftp_name} 已启动"))
         }
         "terminal" => {
             launch_terminal(&connection).map(|_| "Windows Terminal 已启动".to_string())
         }
         "both" => {
-            let winscp_result = launch_winscp(&connection);
+            let sftp_result = launch_sftp(&connection, sftp_client);
             let terminal_result = launch_terminal(&connection);
-            match (winscp_result, terminal_result) {
+            match (sftp_result, terminal_result) {
                 (Ok(()), Ok(())) => Ok("两个应用均已启动".to_string()),
-                (Err(a), Ok(())) => Err(format!("Terminal 已启动，但 WinSCP 启动失败：{a}")),
-                (Ok(()), Err(b)) => Err(format!("WinSCP 已启动，但 Terminal 启动失败：{b}")),
-                (Err(a), Err(b)) => Err(format!("WinSCP：{a}\nTerminal：{b}")),
+                (Err(a), Ok(())) => {
+                    Err(format!("Terminal 已启动，但 {sftp_name} 启动失败：{a}"))
+                }
+                (Ok(()), Err(b)) => {
+                    Err(format!("{sftp_name} 已启动，但 Terminal 启动失败：{b}"))
+                }
+                (Err(a), Err(b)) => Err(format!("{sftp_name}：{a}\nTerminal：{b}")),
             }
         }
         _ => Err("未知的打开方式。".to_string()),
@@ -141,9 +187,10 @@ fn launch_choice(
     result
 }
 
-fn parse_cli_arguments() -> (ConnectionInfo, ThemePreference) {
+fn parse_cli_arguments() -> (ConnectionInfo, ThemePreference, SftpClient) {
     let args: Vec<String> = env::args().skip(1).collect();
     let mut theme_preference = ThemePreference::System;
+    let mut sftp_client = SftpClient::WinScp;
     let mut ssh_url = None;
     let mut index = 0;
 
@@ -169,6 +216,25 @@ fn parse_cli_arguments() -> (ConnectionInfo, ThemePreference) {
             if let Some(parsed) = ThemePreference::parse(value) {
                 theme_preference = parsed;
             }
+        } else if lower == "--cyberduck" || lower == "-cyberduck" {
+            sftp_client = SftpClient::Cyberduck;
+        } else if lower == "--winscp" || lower == "-winscp" {
+            sftp_client = SftpClient::WinScp;
+        } else if lower == "--sftp" || lower == "-sftp" || lower == "--sftp-client" {
+            if let Some(value) = args.get(index + 1) {
+                if let Some(parsed) = SftpClient::parse(value) {
+                    sftp_client = parsed;
+                    index += 1;
+                }
+            }
+        } else if let Some(value) = lower
+            .strip_prefix("--sftp=")
+            .or_else(|| lower.strip_prefix("-sftp="))
+            .or_else(|| lower.strip_prefix("--sftp-client="))
+        {
+            if let Some(parsed) = SftpClient::parse(value) {
+                sftp_client = parsed;
+            }
         } else if lower.starts_with("ssh://") {
             ssh_url = Some(argument.clone());
         }
@@ -176,7 +242,11 @@ fn parse_cli_arguments() -> (ConnectionInfo, ThemePreference) {
         index += 1;
     }
 
-    (parse_connection_from_url(ssh_url), theme_preference)
+    (
+        parse_connection_from_url(ssh_url),
+        theme_preference,
+        sftp_client,
+    )
 }
 
 fn parse_connection_from_url(ssh_url: Option<String>) -> ConnectionInfo {
@@ -237,17 +307,29 @@ fn invalid_connection(ssh_url: String, message: String) -> ConnectionInfo {
     }
 }
 
-fn launch_winscp(connection: &ConnectionInfo) -> Result<(), String> {
-    let winscp = find_winscp()
-        .ok_or_else(|| "未找到 WinSCP.exe。请安装 WinSCP 6.6.1 或更高版本。".to_string())?;
+fn launch_sftp(connection: &ConnectionInfo, client: SftpClient) -> Result<(), String> {
+    match client {
+        SftpClient::WinScp => launch_winscp(connection),
+        SftpClient::Cyberduck => launch_cyberduck(connection),
+    }
+}
 
-    let identity_file = resolve_bookmark_identity(connection)?;
+fn build_sftp_url(connection: &ConnectionInfo) -> Result<Url, String> {
     let mut sftp_url = Url::parse(&connection.ssh_url)
         .map_err(|error| format!("无法解析 SSH URL：{error}"))?;
     sftp_url
         .set_scheme("sftp")
         .map_err(|_| "无法生成 SFTP URL。".to_string())?;
     let _ = sftp_url.set_password(None);
+    Ok(sftp_url)
+}
+
+fn launch_winscp(connection: &ConnectionInfo) -> Result<(), String> {
+    let winscp = find_winscp()
+        .ok_or_else(|| "未找到 WinSCP.exe。请安装 WinSCP 6.6.1 或更高版本。".to_string())?;
+
+    let identity_file = resolve_bookmark_identity(connection)?;
+    let sftp_url = build_sftp_url(connection)?;
 
     Command::new(winscp)
         .args([
@@ -257,6 +339,22 @@ fn launch_winscp(connection: &ConnectionInfo) -> Result<(), String> {
         ])
         .spawn()
         .map_err(|error| format!("无法启动 WinSCP：{error}"))?;
+
+    Ok(())
+}
+
+fn launch_cyberduck(connection: &ConnectionInfo) -> Result<(), String> {
+    let cyberduck = find_cyberduck()
+        .ok_or_else(|| "未找到 Cyberduck.exe。请先安装 Cyberduck。".to_string())?;
+
+    // Cyberduck registers as: Cyberduck.exe "%1" (protocol handler).
+    // It uses the Windows OpenSSH agent pipe for public-key auth.
+    let sftp_url = build_sftp_url(connection)?;
+
+    Command::new(cyberduck)
+        .arg(sftp_url.to_string())
+        .spawn()
+        .map_err(|error| format!("无法启动 Cyberduck：{error}"))?;
 
     Ok(())
 }
@@ -379,6 +477,17 @@ fn find_winscp() -> Option<PathBuf> {
             env_path("LOCALAPPDATA", "Programs\\WinSCP\\WinSCP.exe"),
             env_path("ProgramFiles(x86)", "WinSCP\\WinSCP.exe"),
             env_path("ProgramFiles", "WinSCP\\WinSCP.exe"),
+        ],
+    )
+}
+
+fn find_cyberduck() -> Option<PathBuf> {
+    find_executable(
+        "Cyberduck.exe",
+        &[
+            env_path("ProgramFiles", "Cyberduck\\Cyberduck.exe"),
+            env_path("ProgramFiles(x86)", "Cyberduck\\Cyberduck.exe"),
+            env_path("LOCALAPPDATA", "Programs\\Cyberduck\\Cyberduck.exe"),
         ],
     )
 }
@@ -594,11 +703,12 @@ fn apply_window_theme(window: &WebviewWindow, preference: ThemePreference) {
 }
 
 fn main() {
-    let (connection, theme_preference) = parse_cli_arguments();
+    let (connection, theme_preference, sftp_client) = parse_cli_arguments();
     tauri::Builder::default()
         .manage(AppState {
             connection: Mutex::new(connection),
             theme_preference,
+            sftp_client,
         })
         .on_page_load(|webview, payload| {
             if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
@@ -622,6 +732,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             get_connection_info,
             get_theme_preference,
+            get_sftp_preference,
             get_app_icons,
             launch_choice
         ])
