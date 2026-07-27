@@ -13,6 +13,11 @@ import {
   resolveInitialLocale,
   supportedLocales,
 } from "./i18n";
+import {
+  applyDocumentTheme,
+  normalizeThemePreference,
+  resolvePreviewThemePreference,
+} from "./theme";
 import "./styles.css";
 
 const demoConnection = {
@@ -59,6 +64,9 @@ function AppIcon({ type, icons }) {
 
 export function App() {
   const [locale, setLocale] = useState(resolveInitialLocale);
+  const [themePreference, setThemePreference] = useState(
+    resolvePreviewThemePreference,
+  );
   const [connection, setConnection] = useState(demoConnection);
   const [icons, setIcons] = useState({ winscp: null, terminal: null });
   const [active, setActive] = useState("both");
@@ -94,6 +102,21 @@ export function App() {
   }, [locale]);
 
   useEffect(() => {
+    applyDocumentTheme(themePreference);
+
+    if (themePreference !== "system" || !window.matchMedia) return undefined;
+
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => applyDocumentTheme("system");
+    if (media.addEventListener) {
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    }
+    media.addListener(onChange);
+    return () => media.removeListener(onChange);
+  }, [themePreference]);
+
+  useEffect(() => {
     // When launched via 1Password's ssh:// handler, the OS window can appear
     // without keyboard focus. Re-request focus so shortcuts work without a click.
     const claimFocus = () => {
@@ -111,6 +134,14 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    invoke("get_theme_preference")
+      .then((preference) => {
+        setThemePreference(normalizeThemePreference(preference));
+      })
+      .catch(() => {
+        // Browser preview keeps query-string / system theme preference.
+      });
+
     invoke("get_connection_info")
       .then((info) => {
         if (info) {

@@ -12,13 +12,47 @@ use std::{
     sync::Mutex,
     time::{Duration, SystemTime},
 };
-use tauri::{Manager, State, WebviewWindow};
+use tauri::{Manager, State, Theme, WebviewWindow};
 use url::Url;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ThemePreference {
+    System,
+    Light,
+    Dark,
+}
+
+impl ThemePreference {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "system" | "auto" | "default" => Some(Self::System),
+            "light" => Some(Self::Light),
+            "dark" => Some(Self::Dark),
+            _ => None,
+        }
+    }
+
+    fn to_tauri_theme(self) -> Option<Theme> {
+        match self {
+            Self::System => None,
+            Self::Light => Some(Theme::Light),
+            Self::Dark => Some(Theme::Dark),
+        }
+    }
+}
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,6 +68,7 @@ struct ConnectionInfo {
 
 struct AppState {
     connection: Mutex<ConnectionInfo>,
+    theme_preference: ThemePreference,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -49,6 +84,11 @@ fn get_connection_info(state: State<'_, AppState>) -> ConnectionInfo {
         .lock()
         .expect("connection state poisoned")
         .clone()
+}
+
+#[tauri::command]
+fn get_theme_preference(state: State<'_, AppState>) -> String {
+    state.theme_preference.as_str().to_string()
 }
 
 #[tauri::command]
@@ -101,11 +141,45 @@ fn launch_choice(
     result
 }
 
-fn parse_connection_argument() -> ConnectionInfo {
-    let ssh_url = env::args()
-        .skip(1)
-        .find(|argument| argument.to_ascii_lowercase().starts_with("ssh://"));
+fn parse_cli_arguments() -> (ConnectionInfo, ThemePreference) {
+    let args: Vec<String> = env::args().skip(1).collect();
+    let mut theme_preference = ThemePreference::System;
+    let mut ssh_url = None;
+    let mut index = 0;
 
+    while index < args.len() {
+        let argument = &args[index];
+        let lower = argument.to_ascii_lowercase();
+
+        if lower == "--dark" || lower == "-dark" {
+            theme_preference = ThemePreference::Dark;
+        } else if lower == "--light" || lower == "-light" {
+            theme_preference = ThemePreference::Light;
+        } else if lower == "--theme" || lower == "-theme" {
+            if let Some(value) = args.get(index + 1) {
+                if let Some(parsed) = ThemePreference::parse(value) {
+                    theme_preference = parsed;
+                    index += 1;
+                }
+            }
+        } else if let Some(value) = lower
+            .strip_prefix("--theme=")
+            .or_else(|| lower.strip_prefix("-theme="))
+        {
+            if let Some(parsed) = ThemePreference::parse(value) {
+                theme_preference = parsed;
+            }
+        } else if lower.starts_with("ssh://") {
+            ssh_url = Some(argument.clone());
+        }
+
+        index += 1;
+    }
+
+    (parse_connection_from_url(ssh_url), theme_preference)
+}
+
+fn parse_connection_from_url(ssh_url: Option<String>) -> ConnectionInfo {
     let Some(ssh_url) = ssh_url else {
         return invalid_connection(
             String::new(),
@@ -515,11 +589,16 @@ fn force_foreground_window(hwnd_value: isize) {
     }
 }
 
+fn apply_window_theme(window: &WebviewWindow, preference: ThemePreference) {
+    let _ = window.set_theme(preference.to_tauri_theme());
+}
+
 fn main() {
-    let connection = parse_connection_argument();
+    let (connection, theme_preference) = parse_cli_arguments();
     tauri::Builder::default()
         .manage(AppState {
             connection: Mutex::new(connection),
+            theme_preference,
         })
         .on_page_load(|webview, payload| {
             if matches!(payload.event(), tauri::webview::PageLoadEvent::Finished) {
@@ -532,7 +611,9 @@ fn main() {
             }
         })
         .setup(|app| {
+            let theme_preference = app.state::<AppState>().theme_preference;
             if let Some(window) = app.get_webview_window("main") {
+                apply_window_theme(&window, theme_preference);
                 claim_keyboard_focus(&window);
             }
             schedule_focus_retries(app.handle().clone());
@@ -540,6 +621,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             get_connection_info,
+            get_theme_preference,
             get_app_icons,
             launch_choice
         ])
