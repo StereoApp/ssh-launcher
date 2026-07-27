@@ -6,9 +6,11 @@ use serde::Serialize;
 use std::{
     collections::HashSet,
     env,
+    fs,
     path::PathBuf,
     process::Command,
     sync::Mutex,
+    time::SystemTime,
 };
 use tauri::State;
 use url::Url;
@@ -53,7 +55,7 @@ fn get_connection_info(state: State<'_, AppState>) -> ConnectionInfo {
 fn get_app_icons() -> AppIcons {
     AppIcons {
         winscp: find_winscp().and_then(|path| extract_icon_data_url(&path)),
-        terminal: find_terminal().and_then(|path| extract_icon_data_url(&path)),
+        terminal: find_terminal_icon_source().and_then(|path| extract_icon_data_url(&path)),
     }
 }
 
@@ -315,6 +317,67 @@ fn find_terminal() -> Option<PathBuf> {
             "Microsoft\\WindowsApps\\wt.exe",
         )],
     )
+}
+
+fn find_terminal_icon_source() -> Option<PathBuf> {
+    find_executable("WindowsTerminal.exe", &[])
+        .or_else(find_packaged_terminal)
+        .or_else(query_packaged_terminal)
+}
+
+fn find_packaged_terminal() -> Option<PathBuf> {
+    let windows_apps = env_path("ProgramFiles", "WindowsApps");
+    let mut candidates = fs::read_dir(windows_apps)
+        .ok()?
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !name.starts_with("Microsoft.WindowsTerminal_") {
+                return None;
+            }
+
+            let executable = entry.path().join("WindowsTerminal.exe");
+            executable.is_file().then_some(executable)
+        })
+        .collect::<Vec<_>>();
+
+    candidates.sort_by_key(|path| {
+        fs::metadata(path)
+            .and_then(|metadata| metadata.modified())
+            .unwrap_or(SystemTime::UNIX_EPOCH)
+    });
+    candidates.pop()
+}
+
+fn query_packaged_terminal() -> Option<PathBuf> {
+    let powershell = env_path(
+        "WINDIR",
+        "System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+    );
+    let mut command = Command::new(powershell);
+    command.args([
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Get-AppxPackage -Name Microsoft.WindowsTerminal | Sort-Object Version -Descending | Select-Object -First 1 -ExpandProperty InstallLocation",
+    ]);
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+
+    let output = command.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let install_location = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if install_location.is_empty() {
+        return None;
+    }
+
+    let executable = PathBuf::from(install_location).join("WindowsTerminal.exe");
+    executable.is_file().then_some(executable)
 }
 
 fn extract_icon_data_url(path: &PathBuf) -> Option<String> {
