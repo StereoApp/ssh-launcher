@@ -23,6 +23,7 @@ The interface supports English and Simplified Chinese. It follows the system lan
 - Finds WinSCP in common installation locations; `winscp.exe` does not need to be in `PATH`
 - Reads WinSCP and Windows Terminal icons from locally installed applications at runtime
 - English and Simplified Chinese interface
+- Light / dark theme: follows the system by default, override with launch arguments
 - Portable single-file executable
 
 ## Requirements
@@ -96,6 +97,12 @@ In **Settings → Developer → SSH Agent → Advanced**:
 
 Keep `%s` at the end. 1Password replaces it with the `ssh://` URL.
 
+To force a theme from 1Password, put the theme flag before `%s`:
+
+```text
+"C:\Tools\SSH-Launcher\SSH-Launcher.exe" --theme=dark %s
+```
+
 ### 5. Create and open an SSH Bookmark
 
 Create an SSH Bookmark in 1Password. Supported URL examples:
@@ -144,6 +151,30 @@ A standard WinSCP installation should work without additional configuration. For
 - On first launch, the Windows/WebView language determines whether English or Simplified Chinese is shown.
 - Use the **中文 / EN** control in the top-right corner to switch languages.
 - The preference is stored locally by WebView. A copied executable follows the language of the destination computer on its first launch.
+
+## Theme
+
+The UI supports **light** and **dark** themes.
+
+| Mode | Behavior |
+|------|----------|
+| **system** (default) | Follows Windows light/dark appearance |
+| **light** | Always light |
+| **dark** | Always dark |
+
+Override with a launch argument (order does not matter relative to the `ssh://` URL):
+
+```text
+SSH-Launcher.exe --theme=system "ssh://user@host"
+SSH-Launcher.exe --theme=light "ssh://user@host"
+SSH-Launcher.exe --theme=dark "ssh://user@host"
+SSH-Launcher.exe --dark "ssh://user@host"
+SSH-Launcher.exe --light "ssh://user@host"
+```
+
+Also accepted: `--theme dark`, `-theme=dark`, `auto` / `default` as aliases for `system`.
+
+Browser / Sites preview: append `?theme=dark` (or `light` / `system`) to the URL.
 
 ## Portable migration
 

@@ -23,6 +23,7 @@
 - 自动查找 WinSCP，无需把 `winscp.exe` 加入 `PATH`
 - 从本机程序文件动态读取 WinSCP 和 Windows Terminal 图标
 - 支持简体中文与 English
+- 支持浅色 / 深色主题：默认跟随系统，也可通过启动参数指定
 - 单文件便携版，可复制到其他 Windows 电脑使用
 
 ## 使用条件
@@ -96,6 +97,12 @@ WinSCP 默认使用 **Pageant**。对接 1Password 时必须改为 **OpenSSH ssh
 
 必须保留末尾的 `%s`，1Password 会在这里传入 `ssh://` 链接。
 
+若要从 1Password 固定主题，把主题参数写在 `%s` 前面：
+
+```text
+"C:\Tools\SSH-Launcher\SSH-Launcher.exe" --theme=dark %s
+```
+
 ### 5. 创建并打开 SSH Bookmark
 
 在 1Password 中创建 SSH Bookmark，链接可以使用以下格式：
@@ -139,6 +146,30 @@ SSH Launcher 会依次查找系统 `PATH`、当前用户的本地应用目录、
 - 首次启动时，根据 Windows/WebView 的语言自动选择简体中文或 English。
 - 点击窗口右上角的 **中文 / EN** 可随时切换。
 - 语言偏好保存在当前电脑的 WebView 本地存储中；复制程序到另一台电脑后会重新按那台电脑的语言选择。
+
+## 主题
+
+界面支持 **浅色** 与 **深色**。
+
+| 模式 | 行为 |
+|------|------|
+| **system**（默认） | 跟随 Windows 浅色 / 深色外观 |
+| **light** | 始终浅色 |
+| **dark** | 始终深色 |
+
+可用启动参数覆盖（与 `ssh://` 链接的先后顺序不限）：
+
+```text
+SSH-Launcher.exe --theme=system "ssh://user@host"
+SSH-Launcher.exe --theme=light "ssh://user@host"
+SSH-Launcher.exe --theme=dark "ssh://user@host"
+SSH-Launcher.exe --dark "ssh://user@host"
+SSH-Launcher.exe --light "ssh://user@host"
+```
+
+也支持：`--theme dark`、`-theme=dark`，以及 `auto` / `default` 作为 `system` 的别名。
+
+浏览器 / Sites 预览：在 URL 后加 `?theme=dark`（或 `light` / `system`）。
 
 ## 便携迁移
 
