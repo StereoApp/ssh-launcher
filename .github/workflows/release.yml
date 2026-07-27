@@ -1,0 +1,148 @@
+# Build the portable Windows .exe and publish a GitHub Release.
+#
+# Automatic: push a version tag  →  v1.2.3
+# Manual:    Actions → Release → Run workflow (optional tag to publish)
+#
+# Release assets:
+#   - SSH-Launcher.exe
+#   - SHA256SUMS.txt
+#
+# Prerequisite: package.json, src-tauri/Cargo.toml, and src-tauri/tauri.conf.json
+# versions must match the tag (without the leading "v").
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to rebuild and publish (e.g. v1.1.1). Leave empty to only build an artifact."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}-${{ inputs.tag || 'none' }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-release:
+    name: Build portable exe
+    runs-on: windows-latest
+    steps:
+      - name: Resolve checkout ref
+        id: ref
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "ref=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Verify version matches tag
+        if: steps.ref.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          TAG: ${{ steps.ref.outputs.tag }}
+        run: |
+          if ($env:TAG -notmatch '^v(\d+\.\d+\.\d+)$') {
+            throw "Tag must look like v1.2.3, got: $($env:TAG)"
+          }
+          $ver = $Matches[1]
+          $pkg = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $cargoLine = Select-String -Path src-tauri/Cargo.toml -Pattern '^\s*version\s*=\s*"([^"]+)"' |
+            Select-Object -First 1
+          if (-not $cargoLine) { throw "Could not read version from src-tauri/Cargo.toml" }
+          $cargo = $cargoLine.Matches.Groups[1].Value
+          $tauri = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          Write-Host "tag=$($env:TAG) package=$pkg cargo=$cargo tauri=$tauri"
+          if ($pkg -ne $ver -or $cargo -ne $ver -or $tauri -ne $ver) {
+            throw "Version mismatch: tag $($env:TAG) requires package.json, Cargo.toml, and tauri.conf.json all = $ver"
+          }
+
+      - name: Build portable executable
+        run: npm run tauri:build
+
+      - name: Stage release assets
+        shell: pwsh
+        run: |
+          $src = "src-tauri/target/release/ssh-launcher.exe"
+          if (-not (Test-Path $src)) {
+            throw "Build output missing: $src"
+          }
+          New-Item -ItemType Directory -Force -Path dist-release | Out-Null
+          Copy-Item $src "dist-release/SSH-Launcher.exe" -Force
+          $hash = (Get-FileHash "dist-release/SSH-Launcher.exe" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "SHA256  $hash  SSH-Launcher.exe" | Set-Content -Encoding ascii "dist-release/SHA256SUMS.txt"
+          Get-ChildItem dist-release | Format-Table Name, Length -AutoSize
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SSH-Launcher
+          path: |
+            dist-release/SSH-Launcher.exe
+            dist-release/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish GitHub Release with gh
+        if: steps.ref.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.ref.outputs.tag }}
+        shell: pwsh
+        run: |
+          $title = "SSH Launcher $env:TAG"
+          $assets = @(
+            "dist-release/SSH-Launcher.exe",
+            "dist-release/SHA256SUMS.txt"
+          )
+
+          gh release view $env:TAG 1>$null 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $env:TAG already exists; uploading assets (clobber)."
+            gh release upload $env:TAG @assets --clobber
+          } else {
+            Write-Host "Creating release $env:TAG"
+            gh release create $env:TAG @assets `
+              --title $title `
+              --generate-notes
+          }
+
+          gh release view $env:TAG
