@@ -2,20 +2,47 @@
 
 简体中文 | [English](README.md)
 
-一个面向 Windows 的轻量 SSH 启动器。当你从 1Password 打开 SSH Bookmark 时，可以选择 **SFTP GUI**（默认 WinSCP，可选 Cyberduck）、**Windows Terminal**，或**同时打开两者**。
+**一个 1Password SSH Bookmark，打开 WinSCP、Windows Terminal，或两者一起开。**
 
-界面提供简体中文和 English，会根据系统语言自动选择，也可以在窗口右上角手动切换。
+Windows 上的小工具，用来串起一套完整的 SSH 桌面工作流：安全凭证、图形化传文件、现代终端——不重写其中任何一块。
 
-## 为什么做这个
+界面：中文 / English（默认跟系统，可切换）。浅色 / 深色（默认跟系统，可用启动参数覆盖）。
 
-SSH 密钥都在 **1Password** 里，认证走 SSH Agent 没问题。麻烦的是从 Bookmark 点开时，自定义命令只能绑 **一个** 程序，而我两边都要用：
+## 我的工作流
 
-- 传文件时要 **SFTP GUI**（WinSCP / Cyberduck）  
-- 敲命令时要 **终端**  
+这不是「给 1Password 加个启动菜单」。在 Windows 上，我想补齐此前一直缺的 **一整条 SSH 桌面链路**。四块各干一件事：
 
-同一个主机有时还要两个一起开。固定一个入口做不到。
+| 组件 | 负责 |
+|------|------|
+| **[1Password](https://1password.com/)** | 密钥、Bookmark、授权确认、多设备同步 |
+| **[WinSCP](https://winscp.net/)**（或 Cyberduck） | 成熟、直观的 SFTP GUI |
+| **[Windows Terminal](https://aka.ms/terminal) + OpenSSH** | 现代终端 + 标准 SSH 客户端 |
+| **SSH Launcher** | 同一个服务器入口 → 文件、终端，或两者 |
 
-脚本或系统自带对话框功能上也能凑合。还是做成正常 UI，是因为我喜欢 1Password 的界面，不想点完 Bookmark 下一眼就是黑控制台或简陋弹窗。
+没有重做 SFTP 客户端、终端或密码库，而是用各自最强的现成工具，只补它们之间 **缺的那一层连接**。
+
+### Windows 上常见方案缺什么
+
+常见组合往往只能满足一部分：
+
+| 方案 | SFTP GUI | 现代终端 | 安全密钥管理 | 多设备同步 |
+|------|----------|----------|--------------|------------|
+| WinSCP + PuTTY | 强 | 偏旧 | Pageant / 本地密钥 | 弱 |
+| Windows Terminal + OpenSSH | 弱 | 强 | Agent 可用 | 取决于外部方案 |
+| Termius | 有 | 有 | 内置 | 有，但绑死在单一产品 |
+| 仅 1Password + OpenSSH | 没有像样的文件 GUI | 强 | 强 | 强 |
+| **本方案** | **强** | **强** | **强** | **强** |
+
+真正麻烦的是 **割裂**，而不是少某一个功能：
+
+- 服务器资料在一处，私钥在另一处  
+- SFTP 在 WinSCP，Shell 在 Terminal  
+- 换电脑要重新配一遍  
+- 换服务器没有统一入口  
+
+Launcher 把 **1Password Bookmark 变成控制面**，WinSCP 和 Windows Terminal 是 **执行面**。省下的是每天反复发生的上下文切换和重复填主机，不是偶发边角问题。
+
+1Password 自定义命令只能启动 **一个** 程序。本应用就是那个程序：Bookmark 打开后，再选 **SFTP / 终端 / 同时打开**。做成正常 UI（而不是脚本或系统弹窗），是因为上一环已经是 1Password，下一环也不想变成黑控制台或简陋提示框。
 
 > [!NOTE]
 > 这是一个 **vibe coding 作品**：产品想法、交互取舍与验收由作者完成，代码和视觉实现主要在 AI 协作下迭代完成。欢迎审阅、提出问题和贡献改进。

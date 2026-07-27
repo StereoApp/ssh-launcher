@@ -2,20 +2,47 @@
 
 [简体中文](README.zh-CN.md) | English
 
-A lightweight Windows launcher for 1Password SSH Bookmarks. When an `ssh://` link is opened, choose an **SFTP GUI** (WinSCP by default, or Cyberduck), **Windows Terminal**, or **both**.
+**Use one 1Password SSH Bookmark to open WinSCP, Windows Terminal, or both.**
 
-The interface supports English and Simplified Chinese. It follows the system language by default and can be switched manually.
+A small Windows app for a unified SSH desktop workflow: secure credentials, graphical file transfer, and a modern terminal—without reimplementing any of them.
 
-## Why this exists
+UI: English / Simplified Chinese (follows system language; switchable). Light / dark (follows system; CLI override).
 
-My SSH keys are all in **1Password**. Auth through the SSH Agent is fine. The problem is the Bookmark custom command can only launch **one** app, but I need both:
+## My workflow
 
-- **SFTP GUI** (WinSCP / Cyberduck) when transferring files  
-- **Terminal** when I need a shell  
+This is not “a start menu for 1Password.” On Windows I wanted a **complete SSH desktop path** that was missing before. Four pieces, each doing one job:
 
-Sometimes I need both for the same host. A fixed command cannot do that.
+| Piece | Role |
+|-------|------|
+| **[1Password](https://1password.com/)** | Keys, Bookmarks, approval prompts, multi-device sync |
+| **[WinSCP](https://winscp.net/)** (or Cyberduck) | Mature SFTP GUI |
+| **[Windows Terminal](https://aka.ms/terminal) + OpenSSH** | Modern shell + standard SSH client |
+| **SSH Launcher** | One server entry → files, terminal, or both |
 
-A script or a stock Windows dialog would work functionally. I still made a proper UI because I like how 1Password looks and did not want the next step to be a black console or a bare system prompt.
+I did not rebuild an SFTP client, a terminal, or a password manager. Each tool stays best-in-class; the launcher only fills the **missing connection layer**.
+
+### What felt broken on Windows
+
+Typical setups only cover part of the stack:
+
+| Approach | SFTP GUI | Modern terminal | Safe key management | Multi-device sync |
+|----------|----------|-----------------|---------------------|------------------|
+| WinSCP + PuTTY | Strong | Older feel | Pageant / local keys | Weak |
+| Windows Terminal + OpenSSH | Weak | Strong | Agent possible | Depends on something else |
+| Termius | Yes | Yes | Built-in | Yes, locked into one product |
+| 1Password + OpenSSH only | No real file GUI | Strong | Strong | Strong |
+| **This setup** | **Strong** | **Strong** | **Strong** | **Strong** |
+
+The real gap is **fragmentation**, not a single missing feature:
+
+- Server details in one place, keys in another  
+- SFTP sessions in WinSCP, shells in Terminal  
+- New PC → reconfigure everything  
+- Switch hosts → no single entry point  
+
+SSH Launcher turns a **1Password Bookmark into the control plane**. WinSCP and Windows Terminal are the **execution plane**. What it saves is the daily context-switch and re-entry of the same host—not a rare edge case.
+
+1Password’s custom command can only launch **one** program. This app is that program: after the Bookmark opens, pick **SFTP / Terminal / both**. UI is intentional (not a script or stock dialog) so the step after 1Password still feels like a product, not a leftover prompt.
 
 > [!NOTE]
 > This is a **vibe coding project**. The author defined the product idea, interaction decisions, and acceptance criteria, while most of the code and visual implementation was iterated in collaboration with AI. Code review, issue reports, and contributions are welcome.
