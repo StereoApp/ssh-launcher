@@ -25,7 +25,7 @@ Do not reverse these without an explicit user decision:
 1. **Final product is a Tauri Windows desktop app**, not WinForms or a pure web page.
 2. **Release deliverable** is a **portable single-file `.exe`** that can be copied between Windows 10/11 PCs (`npm run tauri:build` → `src-tauri/target/release/ssh-launcher.exe`). Bundle installers are disabled (`bundle.active: false`, `--no-bundle`).
 3. **Visual target** is the light, 1Password-inspired split-pane UI in `design-reference.png` (fixed **760 × 500** window).
-4. **Three actions only**: SFTP GUI, Windows Terminal, Open both. The combined action must show the **real SFTP app and Windows Terminal icons** together.
+4. **Three launch actions only**: SFTP GUI, Windows Terminal, Open both. The combined action must show the **real SFTP app and Windows Terminal icons** together. An optional **Diagnostics** view (same window) is allowed for environment checks; it is not a fourth launch target.
 5. **SFTP GUI is mutually exclusive**: **WinSCP** (default) or **Cyberduck**, selected only via CLI (`--sftp=winscp|cyberduck`, or `--winscp` / `--cyberduck`). Not an in-app toggle; UI always shows one SFTP card.
 6. **CLI contract**: accept a 1Password SSH Bookmark URL as a meaningful argument (`ssh://...`). 1Password is configured as: `"…\SSH-Launcher.exe" %s` (optional flags before `%s`).
 7. **Never handle private keys**. Auth stays with the 1Password SSH Agent; this app only launches tools with the parsed host/user/port. WinSCP may optionally get `/privatekey=` from `ssh -G` `IdentityFile` (prefer first existing `.pub`) for multi-key agent matching; missing/non-unique identities must **not** block launch (agent-only).
@@ -51,8 +51,8 @@ Do not reverse these without an explicit user decision:
 
 | Layer | Path | Role |
 |-------|------|------|
-| Frontend UI | `src/App.jsx`, `src/styles.css`, `src/i18n.js`, `src/theme.js`, `src/sftp.js`, `src/main.jsx` | Chooser UI, shortcuts, locale, theme, SFTP label |
-| Desktop backend | `src-tauri/src/main.rs` | URL/theme/SFTP parse, icon extract, process launch |
+| Frontend UI | `src/App.jsx`, `src/DiagnosticsView.jsx`, `src/styles.css`, `src/i18n.js`, `src/theme.js`, `src/sftp.js`, `src/diagnostics.js`, `src/main.jsx` | Chooser + diagnostics UI |
+| Desktop backend | `src-tauri/src/main.rs`, `connection.rs`, `paths.rs`, `identity.rs`, `diagnostics.rs` | CLI, launch, path discovery, identity, diagnostics |
 | Tauri config | `src-tauri/tauri.conf.json`, `capabilities/default.json` | Window chrome, capabilities |
 | Web / Sites preview | `worker/index.js`, `.openai/hosting.json`, `scripts/prepare-sites-build.mjs` | Optional Sites handoff for UI preview |
 
@@ -61,7 +61,10 @@ Do not reverse these without an explicit user decision:
 - `get_connection_info` → `ConnectionInfo` (camelCase JSON: `valid`, `sshUrl`, `host`, `user`, `port`, `displayTarget`, `error`)
 - `get_theme_preference` → `"system"` \| `"light"` \| `"dark"` (from CLI; default `system`)
 - `get_sftp_preference` → `"winscp"` \| `"cyberduck"` (from CLI; default `winscp`)
+- `get_open_diagnostics` → `bool` (CLI `--diagnostics`)
 - `get_app_icons` → `{ winscp?, cyberduck?, terminal? }` as data-URL images from installed apps
+- `run_diagnostics` → environment report (OpenSSH, agent pipe, Terminal, WinSCP version/AuthAgent, Cyberduck, 1Password config/include, IdentityFile). Does **not** run `ssh-add` by default
+- `run_ssh_add_check` → **full report** including `ssh-add -l` (may show 1Password prompt; user-triggered only; single report-text owner)
 - `launch_choice({ choice })` → launches then closes the window; `choice` is `winscp` \| `terminal` \| `both` (`winscp` = configured SFTP GUI)
 
 ### Frontend preview behavior
@@ -111,6 +114,7 @@ Manual desktop smoke (real launch path):
 .\src-tauri\target\release\ssh-launcher.exe --theme=dark "ssh://demo@server.example.com:2222"
 .\src-tauri\target\release\ssh-launcher.exe --sftp=cyberduck "ssh://demo@server.example.com:2222"
 .\src-tauri\target\release\ssh-launcher.exe --cyberduck "ssh://demo@server.example.com:2222"
+.\src-tauri\target\release\ssh-launcher.exe --diagnostics "ssh://demo@server.example.com:2222"
 ```
 
 ## Release (GitHub Actions)
@@ -133,29 +137,24 @@ git push origin v1.1.1
 
 ```text
 src/
-  App.jsx          # UI shell, actions, shortcuts, invoke wiring
-  i18n.js          # zh-CN / en-US strings + backend error localization
-  sftp.js          # SFTP client preference normalize / browser preview
-  styles.css       # light split-pane chrome matching design-reference.png
-  theme.js
-  main.jsx
-src-tauri/
-  src/main.rs      # all native logic (prefer keep single-file unless it grows a lot)
-  tauri.conf.json  # fixed 760×500, alwaysOnTop, no resize
-  icons/icon.ico
-assets/
-  screenshots/     # README screenshots
-design-reference.png
-design-qa.md       # last design verification notes
-worker/            # SPA fallback worker for Sites
-scripts/prepare-sites-build.mjs
-tests/sites-worker.test.mjs
+  App.jsx              # shell, chooser, view switch
+  DiagnosticsView.jsx  # diagnostics list + toolbar
+  i18n.js / sftp.js / diagnostics.js / theme.js / styles.css / main.jsx
+src-tauri/src/
+  main.rs         # CLI, AppState, launch, Tauri commands, focus
+  connection.rs   # ConnectionInfo + SftpClient + URL parse
+  paths.rs        # find_ssh / WinSCP / Terminal / Cyberduck discovery
+  identity.rs     # ssh -G IdentityFile resolution
+  diagnostics.rs  # environment probes + report
+src-tauri/tauri.conf.json
+src-tauri/icons/icon.ico
+assets/screenshots/
 ```
 
 ## UI / design constraints
 
 - **Window**: 760×500 logical px, non-resizable, centered, always on top, standard decorations.
-- **Structure**: left connection panel (host / user / port / agent status), right action panel (eyebrow, locale switcher, three action cards, footer message + Esc hint).
+- **Structure**: left connection panel (host / user / port / agent pipe status from diagnostics), right action panel (chooser or diagnostics view).
 - **Icons**: prefer live icons from installed SFTP GUI / Windows Terminal via backend; Fluent UI icons are fallbacks only. Combined action uses stacked real icons for the **selected** SFTP client + Terminal.
 - **Keyboard**: `W` / `T` / `B` / `Esc`. Cards show the shortcut as `<kbd>`. `W` always means the configured SFTP GUI.
 - **Colors / type**: light 1Password-inspired palette is the default visual target; dark theme uses the same layout with CSS variables (`data-theme="light"|"dark"`). Default appearance follows the OS; CLI can force light/dark.

@@ -63,6 +63,7 @@ SSH Launcher turns a **1Password Bookmark into the control plane**. WinSCP and W
 - English and Simplified Chinese interface
 - Light / dark theme: follows the system by default, override with launch arguments
 - SFTP client selection via CLI (`--sftp=winscp` default, or `--sftp=cyberduck`)
+- **Diagnostics** view: OpenSSH, agent pipe, Terminal, WinSCP version/agent setting, 1Password config, IdentityFile; copy report for issues (`--diagnostics`)
 - Portable single-file executable
 
 ## Requirements
@@ -315,11 +316,13 @@ Install WinSCP with its official installer in the default location. For a portab
 
 ### WinSCP opens but authentication fails / no 1Password prompt
 
+Use **Diagnostics** in the app (or start with `--diagnostics`) and copy the report. Also:
+
 1. Confirm WinSCP is **6.6.1 or newer** (**Help → About**). Earlier versions do not support the OpenSSH agent natively.
 2. Set **Preferences → Security → Authentication agent** to **OpenSSH ssh-agent**.
 3. Ensure **Attempt authentication using agent** is enabled for the session.
 4. Keep the 1Password SSH Agent enabled, and make sure the Windows **OpenSSH Authentication Agent** service is not occupying the agent pipe.
-5. Run `ssh-add -l` in a terminal; if keys do not list there, fix 1Password first before debugging WinSCP.
+5. Use **List agent keys** in Diagnostics (or `ssh-add -l`); if keys do not list, fix 1Password first before debugging WinSCP.
 
 ### Windows Terminal does not open
 
